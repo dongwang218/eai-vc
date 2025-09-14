@@ -49,4 +49,4 @@ def start_wandb(config, wandb):
         )
     wandb_cfg_dict = config["wandb"]
 
-    return wandb.init(id=wandb_id, config=config, resume=resume, **wandb_cfg_dict)
+    return wandb.init(id=wandb_id, reinit=True, config=config, resume=resume, **wandb_cfg_dict)

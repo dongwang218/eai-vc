@@ -71,8 +71,9 @@ def bc_pvr_train_loop(config: dict) -> None:
     )
     try:
         demo_paths = pickle.load(open(demo_paths_loc, "rb"))
-    except:
-        print("Unable to load the data. Check the data path.")
+    except Exception as e:
+        import pdb; pdb.set_trace()
+        print("Unable to load the data. Check the data path.", repr(e))
         print(demo_paths_loc)
         quit()
 
@@ -168,7 +169,8 @@ def bc_pvr_train_loop(config: dict) -> None:
             optimizer.step()
             running_loss = running_loss + loss.to("cpu").data.numpy().ravel()[0]
         # log average loss for the epoch
-        wandb_run.log({"epoch_loss": running_loss / (mb_idx + 1)}, step=epoch + 1)
+        if wandb_run: 
+            wandb_run.log({"epoch_loss": running_loss / (mb_idx + 1)}, step=epoch + 1)
         # move the policy to CPU for saving and evaluation
         policy.model.to("cpu")
         policy.model.eval()
@@ -246,7 +248,8 @@ def bc_pvr_train_loop(config: dict) -> None:
             epoch_log["train/highest_success"] = highest_tr_success
 
             # Log with wandb
-            wandb_run.log(data=epoch_log)
+            if wandb_run:
+                wandb_run.log(data=epoch_log)
 
             print(
                 "Epoch = %i | BC performance (eval mode) = %.3f " % (epoch, mean_score)
