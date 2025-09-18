@@ -1,0 +1,19 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.vit.load_contrastive_vit
+  checkpoint_path: model_ckpts/clip/ViT-B-16.pt
+  model:
+    _target_: vc_models.models.vit.vit.clip_vit_base_patch16
+    img_size: 224
+    use_cls: True
+    drop_path_rate: 0.0
+transform:
+  _target_: vc_models.transforms.clip_transforms
+metadata:
+  algo: mae
+  model: clip_vit_base_patch16
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs

@@ -262,17 +262,40 @@ def load_contrastive_vit(model, checkpoint_path=None, state_dict_key="state_dict
     if checkpoint_path is None:
         return model
 
-    old_state_dict = torch.load(checkpoint_path, map_location="cpu")[state_dict_key]
-    state_dict = {}
-    for k in list(old_state_dict.keys()):
-        # retain only base_encoder up to before the embedding layer
-        if k.startswith("module.base_encoder") and not k.startswith(
-            "module.base_encoder.head"
-        ):
-            # remove prefix
-            state_dict[k[len("module.base_encoder.") :]] = old_state_dict[k]
-        # delete renamed or unused k
-        del old_state_dict[k]
+    if not os.path.isabs(checkpoint_path):
+        model_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..')
+        checkpoint_path = os.path.join(model_base_dir,checkpoint_path)
+        
+    def load_state_dict(checkpoint_path: str, map_location='cpu'):
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        elif isinstance(checkpoint, torch.jit.ScriptModule):
+            state_dict = checkpoint.state_dict()
+            for key in ["input_resolution", "context_length", "vocab_size"]:
+                state_dict.pop(key, None)
+        else:
+            state_dict = checkpoint
+        # if next(iter(state_dict.items()))[0].startswith('module'):
+        #     state_dict = {k[7:]: v for k, v in state_dict.items()}
+
+        state_dict = timm.models.vision_transformer._convert_openai_clip(state_dict, model)
+        return state_dict
+
+    state_dict = load_state_dict(checkpoint_path) # torch.load(checkpoint_path, map_location="cpu")[state_dict_key]
+    state_dict.pop("head.bias", None)
+    state_dict.pop("head.weight", None)
+    
+    # state_dict = {}
+    # for k in list(old_state_dict.keys()):
+    #     # retain only base_encoder up to before the embedding layer
+    #     if k.startswith("module.base_encoder") and not k.startswith(
+    #         "module.base_encoder.head"
+    #     ):
+    #         # remove prefix
+    #         state_dict[k[len("module.base_encoder.") :]] = old_state_dict[k]
+    #     # delete renamed or unused k
+    #     del old_state_dict[k]
 
     if model.classifier_feature == "global_pool":
         # remove layer that start with norm
