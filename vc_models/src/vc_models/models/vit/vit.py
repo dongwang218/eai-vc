@@ -10,13 +10,14 @@
 # --------------------------------------------------------
 import os
 from functools import partial
-
+from typing import List, Dict, Optional
 import timm.models.vision_transformer
 import torch
 import torch.nn as nn
 from vc_models.models.vit import model_utils
 from timm.models.vision_transformer import resize_pos_embed
-
+import math
+import torch.nn.functional as F
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """Vision Transformer with support for global average pooling"""
@@ -176,6 +177,20 @@ def vit_base_patch16(**kwargs):
     return model
 
 
+def vit_base_patch14(**kwargs):
+    model = VisionTransformer(
+        patch_size=14,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
+
 def clip_vit_base_patch16(**kwargs):
     model = ClipVisionTransformer(
         patch_size=16,
@@ -221,7 +236,80 @@ def vit_huge_patch14(**kwargs):
     return model
 
 
-def load_mae_encoder(model, checkpoint_path=None):
+def _convert_dinov2(
+        state_dict: Dict[str, torch.Tensor],
+        model: timm.models.vision_transformer.VisionTransformer,
+) -> Dict[str, torch.Tensor]:
+    import re
+    out_dict = {}
+    state_dict.pop("mask_token", None)
+    if 'register_tokens' in state_dict:
+        # convert dinov2 w/ registers to no_embed_class timm model (neither cls or reg tokens overlap pos embed)
+        out_dict['reg_token'] = state_dict.pop('register_tokens')
+        out_dict['cls_token'] = state_dict.pop('cls_token') + state_dict['pos_embed'][:, 0]
+        out_dict['pos_embed'] = state_dict.pop('pos_embed')[:, 1:]
+    for k, v in state_dict.items():
+        if re.match(r"blocks\.(\d+)\.mlp\.w12\.(?:weight|bias)", k):
+            out_dict[k.replace("w12", "fc1")] = v
+            continue
+        elif re.match(r"blocks\.(\d+)\.mlp\.w3\.(?:weight|bias)", k):
+            out_dict[k.replace("w3", "fc2")] = v
+            continue
+        elif re.match(r"^blocks\.\d+\.ls[12]\.gamma$", k):
+            # hack
+            continue
+        out_dict[k] = v
+
+    out_dict.pop("reg_token", None)
+    return out_dict
+
+
+def resample_abs_pos_embed(
+        posemb: torch.Tensor,
+        new_size: List[int],
+        old_size: Optional[List[int]] = None,
+        adjust_num_prefix_tokens: int = 1,  # dinov2's embed already remove the first
+        num_prefix_tokens: int = 1,
+        interpolation: str = 'bicubic',
+        antialias: bool = True,
+        verbose: bool = False,
+):
+    # sort out sizes, assume square if old size not provided
+    num_pos_tokens = posemb.shape[1] + adjust_num_prefix_tokens
+    num_new_tokens = new_size[0] * new_size[1] + num_prefix_tokens
+    if num_new_tokens == num_pos_tokens and new_size[0] == new_size[1]:
+        return posemb
+
+    if old_size is None:
+        hw = int(math.sqrt(num_pos_tokens - num_prefix_tokens))
+        old_size = hw, hw
+
+    if num_prefix_tokens and adjust_num_prefix_tokens == 0:
+        posemb_prefix, posemb = posemb[:, :num_prefix_tokens], posemb[:, num_prefix_tokens:]
+    else:
+        posemb_prefix, posemb = None, posemb
+
+    # do the interpolation
+    embed_dim = posemb.shape[-1]
+    orig_dtype = posemb.dtype
+    posemb = posemb.float()  # interpolate needs float32
+    posemb = posemb.reshape(1, old_size[0], old_size[1], -1).permute(0, 3, 1, 2)
+    posemb = F.interpolate(posemb, size=new_size, mode=interpolation, antialias=antialias)
+    posemb = posemb.permute(0, 2, 3, 1).reshape(1, -1, embed_dim)
+    posemb = posemb.to(orig_dtype)
+
+    # add back extra (class, etc) prefix tokens
+    if posemb_prefix is not None:
+        posemb = torch.cat([posemb_prefix, posemb], dim=1)
+
+    if num_prefix_tokens and adjust_num_prefix_tokens == 1:
+        cls_pos = torch.zeros(1, 1, posemb.shape[-1])
+        posemb = torch.cat([cls_pos, posemb], dim=1)
+
+    return posemb
+
+def load_mae_encoder(model, checkpoint_path=None, subkey="model"):
+
     if checkpoint_path is None:
         return model
     else:
@@ -231,14 +319,27 @@ def load_mae_encoder(model, checkpoint_path=None):
         model_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..')
         checkpoint_path = os.path.join(model_base_dir,checkpoint_path)
         
-    state_dict = torch.load(checkpoint_path, map_location="cpu")["model"]
+    state_dict = torch.load(checkpoint_path, map_location="cpu")
+    if subkey:
+        state_dict = state_dict[subkey]
+    if 'dinov2' in checkpoint_path.lower():
+        state_dict = _convert_dinov2(state_dict, model)
+
     if state_dict["pos_embed"].shape != model.pos_embed.shape:
-        state_dict["pos_embed"] = resize_pos_embed(
-            state_dict["pos_embed"],
-            model.pos_embed,
-            getattr(model, "num_tokens", 1),
-            model.patch_embed.grid_size,
-        )
+        if 'dinov2' in checkpoint_path.lower():
+            # https://github.com/huggingface/pytorch-image-models/blob/019550eeaf43b35f998e59bdf53d117bced3c2f3/timm/models/vision_transformer.py#L751
+            state_dict["pos_embed"] = resample_abs_pos_embed(
+                    state_dict["pos_embed"],
+                    new_size=model.patch_embed.grid_size,
+                    verbose=True,
+                )
+        else:
+            state_dict["pos_embed"] = resize_pos_embed(
+                state_dict["pos_embed"],
+                model.pos_embed,
+                getattr(model, "num_tokens", 1),
+                model.patch_embed.grid_size,
+            )
 
     # filter out keys with name decoder or mask_token
     state_dict = {
