@@ -1,18 +1,17 @@
 _target_: vc_models.models.load_model
 model:
   _target_: vc_models.models.vit.vit.load_mae_encoder
-  checkpoint_path: model_ckpts/dinov2/vit_base_patch14_dinov2.lvd142m.bin
+  checkpoint_path: model_ckpts/dinov2/vit_base_patch14_reg4_dinov2.lvd142m.bin
   subkey: ""
   model:
     _target_: vc_models.models.vit.vit.vit_base_patch14
-    img_size: 518
+    img_size: 224
     use_cls: True
     drop_path_rate: 0.0
     init_values: 1e-5
+    reg_tokens: 4
 transform:
   _target_: vc_models.transforms.vit_transforms
-  resize_size: 546
-  output_size: 518
 metadata:
   algo: mae
   model: vit_base_patch16
