@@ -18,12 +18,14 @@ from vc_models.models.vit import model_utils
 from timm.models.vision_transformer import resize_pos_embed
 import math
 import torch.nn.functional as F
+import numpy as np
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """Vision Transformer with support for global average pooling"""
 
     def __init__(
-        self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, reg_tokens=0, **kwargs
+        self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, 
+        reg_tokens=0, flatten_embedding=False, **kwargs
     ):
         super(VisionTransformer, self).__init__(**kwargs)
         if global_pool:
@@ -50,9 +52,12 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
                 self.patch_embed.grid_size[1],
                 kwargs["embed_dim"],
             )
+            if flatten_embedding:
+                self.embed_dim = np.prod(self.embed_dim)
 
         self.mask_ratio = mask_ratio
         self.reg_tokens = reg_tokens
+        self.flatten_embedding = flatten_embedding
 
     def random_masking(self, x, mask_ratio):
         """
@@ -92,9 +97,12 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             outcome = x[:, 0]  # use cls token
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)
-            outcome = reshape_embedding(
-                x[:, 1:]
-            )  # remove cls token and reshape embedding
+            if self.flatten_embedding:
+                outcome = x[:, 1:].reshape(x.shape[0], -1)
+            else:
+                outcome = reshape_embedding(
+                    x[:, 1:]
+                )  # remove cls token and reshape embedding
         else:
             raise NotImplementedError
 
@@ -213,9 +221,10 @@ def clip_vit_base_patch16(**kwargs):
 
 
 def vit_large_patch16(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
     model = VisionTransformer(
         patch_size=16,
-        embed_dim=1024,
+        embed_dim=embed_dim or 1024,
         depth=24,
         num_heads=16,
         mlp_ratio=4,

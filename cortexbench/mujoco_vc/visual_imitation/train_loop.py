@@ -23,6 +23,9 @@ import mj_envs, gym, mjrl.envs, dmc2gym
 import numpy as np, time as timer, multiprocessing, pickle, os, torch, gc
 import torch.nn as nn
 import torchvision.transforms as T
+from vc_models import vc_models_dir_path
+from omegaconf import OmegaConf
+import math
 
 
 def set_seed(seed=None):
@@ -98,13 +101,35 @@ def bc_pvr_train_loop(config: dict) -> None:
     # construct the environment and policy
     env_kwargs = config["env_kwargs"]
     e = env_constructor(**env_kwargs, fuse_embeddings=fuse_embeddings_flare)
-    policy = BatchNormMLP(
-        env_spec=e.spec,
-        hidden_sizes=eval(config["bc_kwargs"]["hidden_sizes"]),
-        seed=config["seed"],
-        nonlinearity=config["bc_kwargs"]["nonlinearity"],
-        dropout=config["bc_kwargs"]["dropout"],
+
+    embedding_config_path = os.path.join(
+        vc_models_dir_path, "conf/model", config["env_kwargs"]["embedding_name"] + ".yaml"
     )
+    embedding_config = OmegaConf.load(embedding_config_path)
+
+    if embedding_config["model"]["model"]["use_cls"] == False:
+        from vc_models.models.theia.policy_heads import ConvBatchNormMLP
+
+        embedding_dim = int(embedding_config["model"]["model"]["embed_dim"])
+        hw = int(math.sqrt(e.env.embedding_dim / embedding_dim))
+        policy = ConvBatchNormMLP(
+            env_spec=e.spec,
+            hidden_sizes=config["bc_kwargs"]["hidden_sizes"],
+            seed=config["seed"],
+            nonlinearity=config["bc_kwargs"]["nonlinearity"],
+            dropout=config["bc_kwargs"]["dropout"],
+            history_window=config["env_kwargs"]["history_window"],
+            embedding_dim=(embedding_dim, hw, hw),
+            proprio_dim=e.env.proprio_dim,
+        )
+    else:
+        policy = BatchNormMLP(
+            env_spec=e.spec,
+            hidden_sizes=eval(config["bc_kwargs"]["hidden_sizes"]),
+            seed=config["seed"],
+            nonlinearity=config["bc_kwargs"]["nonlinearity"],
+            dropout=config["bc_kwargs"]["dropout"],
+        )
 
     # compute embeddings and create dataset
     print("===================================================================")
@@ -172,7 +197,7 @@ def bc_pvr_train_loop(config: dict) -> None:
         if wandb_run: 
             wandb_run.log({"epoch_loss": running_loss / (mb_idx + 1)}, step=epoch + 1)
         # move the policy to CPU for saving and evaluation
-        policy.model.to("cpu")
+        # policy.model.to("cpu")
         policy.model.eval()
         # ensure enironment embedding is in eval mode before rollouts
         e.env.embedding.eval()
@@ -299,7 +324,7 @@ class FrozenEmbeddingDataset(Dataset):
         device: str = "cuda",
     ):
         self.paths = paths
-        assert "embeddings" in self.paths[0].keys()
+        # assert "embeddings" in self.paths[0].keys()
         # assume equal length trajectories
         # code will work even otherwise but may have some edge cases
         self.path_length = max([p["actions"].shape[0] for p in paths])
@@ -330,7 +355,7 @@ class FrozenEmbeddingDataset(Dataset):
             # features = torch.from_numpy(features).float().to(self.device)
             action = self.paths[traj_idx]["actions"][timestep]
             # action   = torch.from_numpy(action).float().to(self.device)
-        return {"features": features, "actions": action}
+        return {"features": features.to(torch.float32), "actions": action}
 
 
 def compute_embeddings(
@@ -384,5 +409,6 @@ def precompute_features(
                 assert proprio_key in path["env_infos"].keys()
                 feat_t = np.concatenate([feat_t, path["env_infos"][proprio_key][t]])
             features.append(feat_t.copy())
-        path["features"] = np.array(features)
+        path["features"] = torch.tensor(np.array(features), dtype=torch.bfloat16)
+        path.pop("embeddings", None)
     return paths
