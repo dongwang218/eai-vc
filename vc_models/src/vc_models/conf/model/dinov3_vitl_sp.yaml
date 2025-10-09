@@ -17,6 +17,7 @@ model:
     compact_arch_name: "vitl"
     flatten_embedding: True
     embed_dim: 1024
+    use_cls: False
 transform:
   _target_: vc_models.transforms.vit_transforms
 metadata:

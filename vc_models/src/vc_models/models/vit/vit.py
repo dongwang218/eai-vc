@@ -241,9 +241,10 @@ def vit_large_patch16(**kwargs):
     return model
 
 def vit_large_patch14(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
     model = VisionTransformer(
         patch_size=14,
-        embed_dim=1024,
+        embed_dim=embed_dim or 1024,
         depth=24,
         num_heads=16,
         mlp_ratio=4,
@@ -255,9 +256,10 @@ def vit_large_patch14(**kwargs):
 
 
 def vit_huge_patch14(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
     model = VisionTransformer(
         patch_size=14,
-        embed_dim=1280,
+        embed_dim=embed_dim or 1280,
         depth=32,
         num_heads=16,
         mlp_ratio=4,

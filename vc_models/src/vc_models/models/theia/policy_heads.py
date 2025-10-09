@@ -92,6 +92,7 @@ class ConvBatchNormMLP(BatchNormMLP):
         seed: Optional[int] = None,
         nonlinearity: str = "relu",
         dropout: float = 0.0,
+        hw: int = 14,
         *args: Any,
         **kwargs: Any,
     ):
@@ -116,7 +117,7 @@ class ConvBatchNormMLP(BatchNormMLP):
 
         neck = nn.Sequential(
             nn.Conv2d(self.embedding_dim[0] * self.history_window, 256, kernel_size=4, stride=2, padding=1),
-            nn.LayerNorm([256, 7, 7]),
+            nn.LayerNorm([256, self.embedding_dim[-1]//2, self.embedding_dim[-1]//2]),
             nn.ReLU() if nonlinearity == "relu" else nn.Tanh(),  # 14x14 -> 7x7  # just to keep the same as super class
             nn.Conv2d(256, 256, kernel_size=3, stride=2),
             nn.LayerNorm([256, 3, 3]),

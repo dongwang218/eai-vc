@@ -301,23 +301,41 @@ class DinoVisionTransformer(nn.Module):
             return len(self.blocks)
 
     def forward_features(self, x):
-        print(x.shape)
-        assert x.shape[0] == 1
         if self.flatten_embedding:
             x = self.get_intermediate_layers(x)
-            assert len(x) == 1
-            outcome = x[0][0]
+            # (Pdb) len(out)
+            # 1
+            # (Pdb) type(out[0])
+            # <class 'torch.Tensor'>
+            # (Pdb) out[0].shape
+            # torch.Size([20, 196, 1024])            
+            outcome = x[0]
             outcome = outcome.reshape(outcome.shape[0], -1)
         elif self.avg_cls_reg:
             x = self.get_intermediate_layers(x, return_class_token=True, return_extra_tokens=True)
-            assert len(x) == 1
-            x= torch.cat((x[0][1], x[0][2]), dim=1).mean(dim=1)
-            outcome =  self.norm(x)
+            # (Pdb) len(out)
+            # 1
+            # (Pdb) type(out[0])
+            # <class 'tuple'>
+            # (Pdb) p len(out[0])
+            # 3
+            # (Pdb) out[0][0].shape, out[0][1].shape, out[0][2].shape
+            # (torch.Size([20, 196, 1024]), torch.Size([20, 1024]), torch.Size([20, 4, 1024]))
+            outcome = torch.cat((x[0][1].unsqueeze(1), x[0][2]), dim=1).to(x[0][1].device).mean(dim=1)
+            outcome =  self.norm(outcome)
         else:
             x = self.get_intermediate_layers(x, return_class_token=True)
-            assert len(x) == 1
+            # (Pdb) len(out)
+            # 1
+            # (Pdb) type(out[0])
+            # <class 'tuple'>
+            # (Pdb) len(out[0])
+            # 2
+            # (Pdb) out[0][0].shape
+            # torch.Size([20, 196, 1024])
+            # (Pdb) out[0][1].shape
+            # torch.Size([20, 1024])
             outcome = x[0][1]
-        print(f"outcome={outcome.shape}")
         return outcome
 
     def forward(self, x):

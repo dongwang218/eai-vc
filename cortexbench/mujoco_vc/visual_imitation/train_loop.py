@@ -110,6 +110,7 @@ def bc_pvr_train_loop(config: dict) -> None:
     if embedding_config["model"]["model"]["use_cls"] == False:
         from vc_models.models.theia.policy_heads import ConvBatchNormMLP
 
+        is_spatial = True
         embedding_dim = int(embedding_config["model"]["model"]["embed_dim"])
         hw = int(math.sqrt(e.env.embedding_dim / embedding_dim))
         policy = ConvBatchNormMLP(
@@ -123,6 +124,7 @@ def bc_pvr_train_loop(config: dict) -> None:
             proprio_dim=e.env.proprio_dim,
         )
     else:
+        is_spatial = False
         policy = BatchNormMLP(
             env_spec=e.spec,
             hidden_sizes=eval(config["bc_kwargs"]["hidden_sizes"]),
@@ -144,6 +146,7 @@ def bc_pvr_train_loop(config: dict) -> None:
         history_window=config["env_kwargs"]["history_window"],
         fuse_embeddings=fuse_embeddings_flare,
         proprio_key=config["env_kwargs"]["proprio_key"],
+        is_spatial=is_spatial,
     )
     gc.collect()  # garbage collection to free up RAM
     dataset = FrozenEmbeddingDataset(
@@ -197,7 +200,8 @@ def bc_pvr_train_loop(config: dict) -> None:
         if wandb_run: 
             wandb_run.log({"epoch_loss": running_loss / (mb_idx + 1)}, step=epoch + 1)
         # move the policy to CPU for saving and evaluation
-        # policy.model.to("cpu")
+        if not is_spatial:
+            policy.model.to("cpu")
         policy.model.eval()
         # ensure enironment embedding is in eval mode before rollouts
         e.env.embedding.eval()
@@ -393,6 +397,7 @@ def precompute_features(
     history_window: int = 1,
     fuse_embeddings: callable = None,
     proprio_key: str = None,
+    is_spatial=False,
 ):
     assert "embeddings" in paths[0].keys()
     for path in paths:
@@ -409,6 +414,6 @@ def precompute_features(
                 assert proprio_key in path["env_infos"].keys()
                 feat_t = np.concatenate([feat_t, path["env_infos"][proprio_key][t]])
             features.append(feat_t.copy())
-        path["features"] = torch.tensor(np.array(features), dtype=torch.bfloat16)
+        path["features"] = torch.tensor(np.array(features), dtype=(torch.bfloat16 if is_spatial else torch.float32))
         path.pop("embeddings", None)
     return paths
