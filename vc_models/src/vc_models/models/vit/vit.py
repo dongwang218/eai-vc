@@ -25,7 +25,8 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
     def __init__(
         self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, 
-        reg_tokens=0, flatten_embedding=False, **kwargs
+        reg_tokens=0, flatten_embedding=False,
+        avg_cls_reg=False, **kwargs
     ):
         super(VisionTransformer, self).__init__(**kwargs)
         if global_pool:
@@ -58,6 +59,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         self.mask_ratio = mask_ratio
         self.reg_tokens = reg_tokens
         self.flatten_embedding = flatten_embedding
+        self.avg_cls_reg = avg_cls_reg
 
     def random_masking(self, x, mask_ratio):
         """
@@ -93,8 +95,12 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             x = x[:, 1:, :].mean(dim=1)  # global pool without cls token
             outcome = self.fc_norm(x)
         elif self.classifier_feature == "use_cls_token":
-            x = self.norm(x)
-            outcome = x[:, 0]  # use cls token
+            if self.avg_cls_reg and self.reg_tokens > 0:
+                x = x[:, :(1+self.reg_tokens), :].mean(dim=1)  # global pool without cls token
+                outcome = self.fc_norm(x)
+            else:
+                x = self.norm(x)
+                outcome = x[:, 0]  # use cls token
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)
             if self.flatten_embedding:
@@ -234,6 +240,19 @@ def vit_large_patch16(**kwargs):
     )
     return model
 
+def vit_large_patch14(**kwargs):
+    model = VisionTransformer(
+        patch_size=14,
+        embed_dim=1024,
+        depth=24,
+        num_heads=16,
+        mlp_ratio=4,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
 
 def vit_huge_patch14(**kwargs):
     model = VisionTransformer(
@@ -304,7 +323,17 @@ def load_mae_encoder(model, checkpoint_path=None, subkey="model"):
         state_dict = state_dict[subkey]
 
     if state_dict["pos_embed"].shape != model.pos_embed.shape:
-        if 'dinov2' in checkpoint_path.lower():
+        if "pixo" in checkpoint_path.lower():
+            # ['pos_embed'].shape == [1, 260, 1280] ['cls_token'].shape == [1, 4, 1280]
+            cls_token = state_dict["cls_token"]
+            pos_embed = state_dict["pos_embed"]
+            assert cls_token.shape[1] == 1 + model.reg_tokens and pos_embed.shape[1] == model.reg_tokens + model.pos_embed.shape[1]
+            state_dict["cls_token"] = cls_token[:, :1]
+            model.reg_token = cls_token[:, 1:] + pos_embed[:, 1:(model.reg_tokens+1)]
+            state_dict["pos_embed"] = torch.cat((pos_embed[:, :1], pos_embed[:, (model.reg_tokens+1):]), dim=1)
+            state_dict.pop("last_proj.weight")
+            state_dict.pop("last_proj.bias")
+        elif 'dinov2' in checkpoint_path.lower():
             # https://github.com/huggingface/pytorch-image-models/blob/019550eeaf43b35f998e59bdf53d117bced3c2f3/timm/models/vision_transformer.py#L751
             model.reg_token = state_dict.pop("reg_token", None)
             state_dict["pos_embed"] = resample_abs_pos_embed(
