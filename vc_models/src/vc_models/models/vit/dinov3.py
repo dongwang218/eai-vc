@@ -83,9 +83,13 @@ class DinoVisionTransformer(nn.Module):
         device = None,
         stages: Tuple[int, ...] = (6, 6, 6, 6),  # blocks per stage
         weights_path=None,
+        flatten_embedding=False,
+        avg_cls_reg=False,
         **ignored_kwargs,
     ):
         super().__init__()
+        self.flatten_embedding=flatten_embedding
+        self.avg_cls_reg = avg_cls_reg
         if len(ignored_kwargs) > 0:
             logger.warning(f"Ignored kwargs: {ignored_kwargs}")
         del ignored_kwargs
@@ -297,17 +301,34 @@ class DinoVisionTransformer(nn.Module):
             return len(self.blocks)
 
     def forward_features(self, x):
-        x = self.get_intermediate_layers(x, return_class_token=True)
-        return x[0][1]
+        print(x.shape)
+        assert x.shape[0] == 1
+        if self.flatten_embedding:
+            x = self.get_intermediate_layers(x)
+            assert len(x) == 1
+            outcome = x[0][0]
+            outcome = outcome.reshape(outcome.shape[0], -1)
+        elif self.avg_cls_reg:
+            x = self.get_intermediate_layers(x, return_class_token=True, return_extra_tokens=True)
+            assert len(x) == 1
+            x= torch.cat((x[0][1], x[0][2]), dim=1).mean(dim=1)
+            outcome =  self.norm(x)
+        else:
+            x = self.get_intermediate_layers(x, return_class_token=True)
+            assert len(x) == 1
+            outcome = x[0][1]
+        print(f"outcome={outcome.shape}")
+        return outcome
 
     def forward(self, x):
         return self.forward_features(x)
 
 
 def vit_large_patch16(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
     model = DinoVisionTransformer(
         patch_size=16,
-        embed_dim=1024,
+        embed_dim=embed_dim or 1024,
         depth=24,
         num_heads=16,
         mlp_ratio=4,

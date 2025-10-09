@@ -1,0 +1,28 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.dinov3.load_mae_encoder
+  checkpoint_path: model_ckpts/dinov3/dinov3_vitl16_pretrain_lvd1689m.pth
+  subkey: ""
+  model:
+    _target_: vc_models.models.vit.dinov3.vit_large_patch16
+    layerscale_init: 1e-5
+    n_storage_tokens: 4
+    pos_embed_rope_rescale_coords: 2
+    pos_embed_rope_dtype: "fp32"
+    norm_layer: "layernormbf16"
+    ffn_layer: "mlp"
+    ffn_bias: true
+    proj_bias: true
+    mask_k_bias: true
+    compact_arch_name: "vitl"
+    avg_cls_reg: True
+transform:
+  _target_: vc_models.transforms.vit_transforms
+metadata:
+  algo: mae
+  model: vit_large_patch14_dinov2
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs
