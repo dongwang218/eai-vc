@@ -23,7 +23,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """Vision Transformer with support for global average pooling"""
 
     def __init__(
-        self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, reg_tokens=0, **kwargs
+        self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, reg_tokens=0, avg_cls_reg=False, **kwargs
     ):
         super(VisionTransformer, self).__init__(**kwargs)
         if global_pool:
@@ -53,6 +53,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
         self.mask_ratio = mask_ratio
         self.reg_tokens = reg_tokens
+        self.avg_cls_reg = avg_cls_reg
 
     def random_masking(self, x, mask_ratio):
         """
@@ -88,8 +89,12 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             x = x[:, 1:, :].mean(dim=1)  # global pool without cls token
             outcome = self.fc_norm(x)
         elif self.classifier_feature == "use_cls_token":
-            x = self.norm(x)
-            outcome = x[:, 0]  # use cls token
+            if self.avg_cls_reg and self.reg_tokens > 0:
+                x = x[:, :(1+self.reg_tokens), :].mean(dim=1)  # global pool without cls token
+                outcome = self.fc_norm(x)
+            else:
+                x = self.norm(x)
+                outcome = x[:, 0]  # use cls token
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)
             outcome = reshape_embedding(

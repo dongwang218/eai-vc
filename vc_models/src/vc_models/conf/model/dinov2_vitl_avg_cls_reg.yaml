@@ -1,19 +1,20 @@
 _target_: vc_models.models.load_model
 model:
   _target_: vc_models.models.vit.vit.load_mae_encoder
-  checkpoint_path: model_ckpts/pixo/distill_mask50_grid2_vit_1b_to_huge_cls_l1_patch_l1_avg_teanormFalse_mc2b_hist_area17_x4_bs8192_blr5e-6_ep400.pth
-  subkey: "model"
+  checkpoint_path: model_ckpts/dinov2/vit_large_patch14_reg4_dinov2.lvd142m.bin
+  subkey: ""
   model:
-    _target_: vc_models.models.vit.vit.vit_huge_patch14
+    _target_: vc_models.models.vit.vit.vit_large_patch14
     use_cls: True
     drop_path_rate: 0.0
-    reg_tokens: 3
-    avg_cls_reg: False
+    init_values: 1e-5
+    reg_tokens: 4
+    avg_cls_reg: True
 transform:
   _target_: vc_models.transforms.vit_transforms
 metadata:
   algo: mae
-  model: vit_huge_patch14_pixo
+  model: vit_large_patch14_dinov2
   data:
     - ego
     - imagenet
