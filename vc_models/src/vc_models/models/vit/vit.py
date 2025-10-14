@@ -104,7 +104,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)
             if self.flatten_embedding:
-                outcome = x[:, 1:].reshape(x.shape[0], -1)
+                outcome = x[:, (1+self.reg_tokens):].reshape(x.shape[0], -1)
             else:
                 outcome = reshape_embedding(
                     x[:, 1:]
