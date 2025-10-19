@@ -349,19 +349,30 @@ def vit_large_patch16(**kwargs):
         embed_dim=embed_dim or 1024,
         depth=24,
         num_heads=16,
-        mlp_ratio=4,
         qkv_bias=True,
         # norm_layer=partial(nn.LayerNorm, eps=1e-6),
         **kwargs
     )
     return model
 
-def load_mae_encoder(model, checkpoint_path=None, subkey="model"):
+def vit_huge_patch16(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
+    model = DinoVisionTransformer(
+        patch_size=16,
+        embed_dim=embed_dim or 1280,
+        depth=32,
+        num_heads=20,
+        # norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
+def load_mae_encoder(model, checkpoint_path=None, subkey="model", **kwargs):
 
     if not os.path.isabs(checkpoint_path):
         model_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..')
         checkpoint_path = os.path.join(model_base_dir,checkpoint_path)
-        
+
     state_dict = torch.load(checkpoint_path, map_location="cpu")
     model.load_state_dict(state_dict)
     return model

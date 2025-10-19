@@ -19,6 +19,8 @@ from timm.models.vision_transformer import resize_pos_embed
 import math
 import torch.nn.functional as F
 import numpy as np
+from transformers import AutoModel
+import types
 
 class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """Vision Transformer with support for global average pooling"""
@@ -269,6 +271,62 @@ def vit_huge_patch14(**kwargs):
     )
     return model
 
+def deit_forward_features(self, x):
+    x = self.original_forward(x).last_hidden_state
+    if self.global_pool:
+        return torch.mean(x[:, 1 : ], dim=1)  # [B, C]
+    elif self.use_cls:
+        return x[:, 0]  # [B, C]
+    else:
+        if self.flatten_embedding:
+            outcome = x[:, (1+self.reg_tokens):].reshape(x.shape[0], -1)
+        else:
+            outcome = reshape_embedding(
+                    x[:, 1:]
+                )  # remove cls token and reshape embedding
+        return outcome
+
+# theia
+def deit_base_patch16(global_pool=False, use_cls=True, flatten_embedding: bool=False, **kwargs):
+    deit = AutoModel.from_pretrained("facebook/deit-base-patch16-224", image_size=224)
+    deit.pooler = torch.nn.Identity()
+    deit.global_pool = global_pool
+    deit.use_cls = use_cls
+    deit.flatten_embedding = flatten_embedding
+    deit.reg_tokens = 0
+
+    deit.original_forward = deit.forward
+    deit.forward_features = types.MethodType(deit_forward_features, deit)
+    deit.forward = types.MethodType(deit_forward_features, deit)
+
+    deit.embed_dim = kwargs["embed_dim"]
+    if global_pool:
+        deit.classifier_feature = "global_pool"
+    elif use_cls:
+        deit.classifier_feature = "use_cls_token"
+    else:
+        deit.classifier_feature = "reshape_embedding"
+
+    if deit.classifier_feature == "reshape_embedding":
+        deit.final_spatial = int(deit.embeddings.patch_embeddings.num_patches**0.5)
+        deit.embed_dim = (
+            deit.final_spatial, deit.final_spatial,
+            kwargs["embed_dim"],
+        )
+        if flatten_embedding:
+            deit.embed_dim = np.prod(deit.embed_dim)
+
+    return deit
+
+def load_r3m(**kwargs):
+    from r3m import load_r3m
+    r3m = load_r3m("resnet50") # resnet18, resnet34
+    r3m.use_cls = True
+    r3m.forward_features = r3m.forward
+
+    r3m.embed_dim = kwargs["embed_dim"]
+    r3m.classifier_feature = "use_cls_token"
+    return r3m
 
 def resample_abs_pos_embed(
         posemb: torch.Tensor,
@@ -427,5 +485,20 @@ def load_contrastive_vit(model, checkpoint_path=None, state_dict_key="state_dict
             model.patch_embed.grid_size,
         )
 
+    model.load_state_dict(state_dict)
+    return model
+
+def load_deit_encoder(model, checkpoint_path=None, subkey="model", **kwargs):
+
+    if checkpoint_path is None:
+        return model
+    else:
+        model_utils.download_model_if_needed(checkpoint_path)
+
+    if not os.path.isabs(checkpoint_path):
+        model_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..','..')
+        checkpoint_path = os.path.join(model_base_dir,checkpoint_path)
+        
+    state_dict = torch.load(checkpoint_path, map_location="cpu")["model"]
     model.load_state_dict(state_dict)
     return model

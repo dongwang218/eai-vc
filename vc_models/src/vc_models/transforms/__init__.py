@@ -33,13 +33,14 @@ def resnet_transforms(resize_size=256, output_size=224):
     )
 
 
+# based on https://github.com/facebookresearch/r3m/blob/main/r3m/example.py#L24
 def r3m_transforms(resize_size=256, output_size=224):
     return T.Compose(
         [
-            ToTensorIfNot(),  # this divides by 255
-            T.Resize(resize_size),
+            T.Resize(resize_size), # interpolation=T.InterpolationMode.BICUBIC),
             T.CenterCrop(output_size),
-            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            T.ToTensor(),                # converts to [0,1]
+            T.Lambda(lambda x: x * 255), # scale back to [0,255]
         ]
     )
 
@@ -56,6 +57,45 @@ def clip_transforms(resize_size=256, output_size=224):
             ),
         ]
     )
+
+def deit_transforms(output_size=224):
+    """
+    TheiaModel, backbone is Deit
+    model.backbone.processor
+ViTImageProcessor {
+  "do_convert_rgb": null,
+  "do_normalize": true,
+  "do_rescale": true,
+  "do_resize": true,
+  "image_mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "image_processor_type": "ViTImageProcessor",
+  "image_std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "resample": 2,
+  "rescale_factor": 0.00392156862745098,
+  "size": {
+    "height": 224,
+    "width": 224
+  }
+}
+    """
+    return T.Compose([
+        # Resize directly to (224, 224) with bilinear interpolation
+        T.Resize((output_size, output_size), interpolation=T.InterpolationMode.BILINEAR),
+
+        # Convert to tensor and scale [0,255] → [0,1]
+        ToTensorIfNot(),
+
+        # Normalize to [-1,1] using mean=std=0.5
+        T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ])
 
 
 def transform_augment(

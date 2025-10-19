@@ -18,6 +18,7 @@ def load_model(
     transform,
     metadata=None,
     checkpoint_dict=None,
+    **kwargs,
 ):
     if checkpoint_dict is not None:
         msg = model.load_state_dict(checkpoint_dict)

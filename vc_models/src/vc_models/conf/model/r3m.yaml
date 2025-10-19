@@ -1,0 +1,15 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.vit.load_r3m
+  drop_path_rate: 0.0
+  embed_dim: 2048
+transform:
+  _target_: vc_models.transforms.r3m_transforms
+metadata:
+  algo: mae
+  model: r3m_resnet50
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs
