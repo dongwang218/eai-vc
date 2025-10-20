@@ -20,9 +20,12 @@ else:
 
 from transformers import pipeline
 from transformers.image_utils import load_image
+from transformers import AutoImageProcessor, AutoModel
 
 outputs = []
 def hook(module, input, output):
+	if "drop_path" in module.name:
+		return
 	if isinstance(input, tuple) and len(input) == 1 and isinstance(input[0], torch.Tensor) and not outputs:
 		outputs.append(("input", "input", tuple(input[0].shape), input[0].detach().clone()))
 	if isinstance(output, torch.Tensor):
@@ -30,26 +33,44 @@ def hook(module, input, output):
 def register_hook(m):
 	m.register_forward_hook(hook)
 
-feature_extractor = pipeline(
-    model="facebook/dinov3-vith16plus-pretrain-lvd1689m",
-    task="image-feature-extraction", 
+# feature_extractor = pipeline(
+#     model="facebook/dinov3-vith16plus-pretrain-lvd1689m",
+#     task="image-feature-extraction", 
+# )
+# model = feature_extractor.model
+# for name, module in model.named_modules():
+# 	module.name = name
+# model.apply(register_hook)
+
+# features = feature_extractor(pil_images)
+
+# config = model.config
+# print(model.__class__.__name__)
+# print(config)
+# arr = np.array(features[0])   # shape: (1, 201, 1280) for ViT-type backbones
+# tensor = torch.from_numpy(arr)  # (num_tokens, embed_dim)
+# tensor = tensor[:, -196:]
+
+pretrained_model_name = "facebook/dinov3-vith16plus-pretrain-lvd1689m"
+processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+model = AutoModel.from_pretrained(
+    pretrained_model_name, 
+    device_map="auto", 
 )
-model = feature_extractor.model
+
+inputs = processor(images=pil_images, return_tensors="pt").to(model.device)
 for name, module in model.named_modules():
 	module.name = name
 model.apply(register_hook)
 
-features = feature_extractor(pil_images)
+with torch.inference_mode():
+    model_outputs = model(**inputs)
 
-config = model.config
-print(model.__class__.__name__)
-print(config)
-arr = np.array(features[0])   # shape: (1, 201, 1280) for ViT-type backbones
-tensor = torch.from_numpy(arr)  # (num_tokens, embed_dim)
-tensor = tensor[:, -196:]
+features = model_outputs.last_hidden_state
+features = features[:, -196:]
 # 4. Save extracted feature tensors
 torch.save(
-	tensor,
+	features,
     "scripts/dinov3_vith_features.pt"
 )
 torch.save(
@@ -57,7 +78,3 @@ torch.save(
     "scripts/dinov3_vith_features_per_layer.pt"
 )
 print("Saved features to dinov3_vith_features.pt")
-
-# torch.save(
-#     model.state_dict(),
-# 	"vc_models/src/model_ckpts/dinov3/dinov3-vith16plus-pretrain-lvd1689m.pth")

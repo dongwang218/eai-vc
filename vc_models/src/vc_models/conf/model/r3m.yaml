@@ -3,6 +3,8 @@ model:
   _target_: vc_models.models.vit.vit.load_r3m
   drop_path_rate: 0.0
   embed_dim: 2048
+  model:
+    use_cls: True
 transform:
   _target_: vc_models.transforms.r3m_transforms
 metadata:

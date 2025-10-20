@@ -28,7 +28,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     def __init__(
         self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, 
         reg_tokens=0, flatten_embedding=False,
-        avg_cls_reg=False, **kwargs
+        avg_cls_reg=False, cat_cls_reg=False, **kwargs
     ):
         super(VisionTransformer, self).__init__(**kwargs)
         if global_pool:
@@ -58,10 +58,13 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             if flatten_embedding:
                 self.embed_dim = np.prod(self.embed_dim)
 
+        if use_cls and cat_cls_reg:
+            self.embed_dim = kwargs["embed_dim"] * (1+reg_tokens)
         self.mask_ratio = mask_ratio
         self.reg_tokens = reg_tokens
         self.flatten_embedding = flatten_embedding
         self.avg_cls_reg = avg_cls_reg
+        self.cat_cls_reg = cat_cls_reg
 
     def random_masking(self, x, mask_ratio):
         """
@@ -97,11 +100,12 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             x = x[:, 1:, :].mean(dim=1)  # global pool without cls token
             outcome = self.fc_norm(x)
         elif self.classifier_feature == "use_cls_token":
+            x = self.norm(x)
             if self.avg_cls_reg and self.reg_tokens > 0:
-                x = x[:, :(1+self.reg_tokens), :].mean(dim=1)  # global pool without cls token
-                outcome = self.fc_norm(x)
+                outcome = x[:, :(1+self.reg_tokens), :].mean(dim=1)  # global pool without cls token
+            elif self.cat_cls_reg and self.reg_tokens > 0:
+                outcome = x[:, :(1+self.reg_tokens), :].reshape(x.shape[0], -1)  # global pool without cls token
             else:
-                x = self.norm(x)
                 outcome = x[:, 0]  # use cls token
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)

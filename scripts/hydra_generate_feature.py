@@ -12,10 +12,10 @@ import os
 per_layer = True
 outputs = []
 def hook(module, input, output):
-	if isinstance(input, torch.Tensor) and not outputs:
-		outputs.append(("input", "input", input.shape, input.detach()))
+	if isinstance(input, tuple) and len(input) == 1 and isinstance(input[0], torch.Tensor) and not outputs:
+		outputs.append(("input", "input", tuple(input[0].shape), input[0].detach().clone()))
 	if isinstance(output, torch.Tensor):
-		outputs.append((module.name, module.__class__.__name__, output.shape, output.detach()))
+		outputs.append((module.name, module.__class__.__name__, tuple(output.shape), output.detach().clone()))
 def register_hook(m):
 	m.register_forward_hook(hook)
 

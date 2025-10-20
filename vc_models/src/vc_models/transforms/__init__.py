@@ -21,6 +21,15 @@ def vit_transforms(resize_size=256, output_size=224):
         ]
     )
 
+# https://github.com/huggingface/transformers/blob/307c5238546ba1675daabc46050c63ffde25f8e6/src/transformers/models/dinov3_vit/image_processing_dinov3_vit_fast.py#L74
+def dinov3_vit_transforms(output_size=224):
+    return T.Compose(
+        [
+            T.Resize(output_size, interpolation=T.InterpolationMode.BILINEAR),
+            ToTensorIfNot(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
 
 def resnet_transforms(resize_size=256, output_size=224):
     return T.Compose(

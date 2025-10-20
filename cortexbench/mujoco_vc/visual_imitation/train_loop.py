@@ -107,7 +107,7 @@ def bc_pvr_train_loop(config: dict) -> None:
     )
     embedding_config = OmegaConf.load(embedding_config_path)
 
-    if embedding_config["model"]["model"]["use_cls"] == False:
+    if embedding_config["model"]["model"].get("flatten_embedding", False):
         from vc_models.models.theia.policy_heads import ConvBatchNormMLP
 
         is_spatial = True

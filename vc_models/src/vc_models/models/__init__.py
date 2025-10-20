@@ -24,9 +24,12 @@ def load_model(
         msg = model.load_state_dict(checkpoint_dict)
         log.warning(msg)
 
-    with torch.no_grad():
-        transformed_img = transform(zero_img).unsqueeze(0)
-        embedding_dim = model.eval()(transformed_img).shape[1]
-        model.train()
+    if hasattr(model, "embed_dim"):
+        embedding_dim = model.embed_dim
+    else:
+        with torch.no_grad():
+            transformed_img = transform(zero_img).unsqueeze(0)
+            embedding_dim = model.eval()(transformed_img).shape[1]
+            model.train()
 
     return model, embedding_dim, transform, metadata

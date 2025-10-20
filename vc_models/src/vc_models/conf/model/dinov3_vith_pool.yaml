@@ -14,9 +14,9 @@ model:
     ffn_bias: true
     proj_bias: true
     mask_k_bias: true
-    flatten_embedding: true
     embed_dim: 1280
     use_cls: false
+    global_pool: True
     ffn_ratio: 6.0
     qkv_bias: true
     drop_path_rate: 0.0
