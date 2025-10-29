@@ -204,17 +204,17 @@ class BCFinetune:
             self.max_dict[sim_env_name] = {"train": {}, "test": {}}
 
         # Sim rollout
-        if self.run_sim:
-            sim_log_dict = self.sim_rollout(
-                sim_dir,
-                start_epoch,
-                max_demo_per_diff=self.algo_conf.max_demo_per_diff,
-            )
-            log.info(sim_log_dict)
+        # if self.run_sim:
+        #     sim_log_dict = self.sim_rollout(
+        #         sim_dir,
+        #         start_epoch,
+        #         max_demo_per_diff=self.algo_conf.max_demo_per_diff,
+        #     )
+        #     log.info(sim_log_dict)
 
-            if not no_wandb:
-                all_dict = {**sim_log_dict}
-                t_utils.plot_loss(all_dict, start_epoch + 1)
+        #     if not no_wandb:
+        #         all_dict = {**sim_log_dict}
+        #         t_utils.plot_loss(all_dict, start_epoch + 1)
         for outer_i in range(start_epoch, self.conf.task.n_outer_iter):
             # Update policy network
             self.policy.train()
@@ -310,7 +310,7 @@ class BCFinetune:
                 task=self.task,
                 n_fingers_to_move=self.n_fingers_to_move,
             )
-            for split_name in ["train", "test"]:
+            for split_name in ["test"]: # ["train", "test"]:
                 traj_list = self.traj_info[f"{split_name}_demos"]
                 plot_count_dict = {}
 
@@ -342,18 +342,18 @@ class BCFinetune:
                         self.policy,
                         demo,
                         self.policy.state_dict(),
-                        save_dir=traj_sim_dir,
+                        # save_dir=traj_sim_dir,
                         encoder=self.encoder,
                         epoch=outer_i,
                     )
 
                     # Save gif of sim rollout
-                    d_utils.save_gif(
-                        sim_traj_dict["image_60"],
-                        os.path.join(
-                            traj_sim_dir, f"viz_{traj_label}_epoch_{outer_i+1}.gif"
-                        ),
-                    )
+                    # d_utils.save_gif(
+                    #     sim_traj_dict["image_60"],
+                    #     os.path.join(
+                    #         traj_sim_dir, f"viz_{traj_label}_epoch_{outer_i+1}.gif"
+                    #     ),
+                    # )
 
                     # Compute final error for ftpos of each finger
                     final_sim_ftpos = np.expand_dims(sim_traj_dict["ft_pos_cur"][-1], 0)

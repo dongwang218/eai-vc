@@ -52,8 +52,8 @@ def get_vc_model_and_transform(model_name, device="cpu", use_compression_layer=F
             model_cfg = main_model_cfg.model.model
         else:
             model_cfg = main_model_cfg.model
-        model_cfg.global_pool = not use_compression_layer
-        model_cfg.use_cls = not use_compression_layer
+        #model_cfg.global_pool = not use_compression_layer
+        #model_cfg.use_cls = not use_compression_layer
 
     model, embedding_dim, transform, metadata = hydra.utils.call(main_model_cfg)
        
