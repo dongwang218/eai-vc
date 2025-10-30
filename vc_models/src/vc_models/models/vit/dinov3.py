@@ -41,10 +41,10 @@ def dinov3_forward_features(self, x):
 
 def vit_large_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_embedding=False,
         avg_cls_reg=False, **kwargs):
-    embed_dim = kwargs.pop("embed_dim", None)
+    embed_dim = kwargs.pop("embed_dim", 1024)
     model = DinoVisionTransformer(
         patch_size=16,
-        embed_dim=embed_dim or 1024,
+        embed_dim=embed_dim,
         depth=24,
         num_heads=16,
         qkv_bias=True,
@@ -57,14 +57,21 @@ def vit_large_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_emb
     model.flatten_embedding = flatten_embedding
     model.avg_cls_reg = avg_cls_reg
     model.embed_dim = embed_dim
+
+    if global_pool:
+        model.classifier_feature = "global_pool"
+    elif use_cls:
+        model.classifier_feature = "use_cls_token"
+    else:
+        model.classifier_feature = "reshape_embedding"
     return model
 
 def vit_huge_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_embedding=False,
         avg_cls_reg=False, **kwargs):
-    embed_dim = kwargs.pop("embed_dim", None)
+    embed_dim = kwargs.pop("embed_dim", 1280)
     model = DinoVisionTransformer(
         patch_size=16,
-        embed_dim=embed_dim or 1280,
+        embed_dim=embed_dim,
         depth=32,
         num_heads=20,
         # norm_layer=partial(nn.LayerNorm, eps=1e-6),
@@ -76,6 +83,13 @@ def vit_huge_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_embe
     model.flatten_embedding = flatten_embedding
     model.avg_cls_reg = avg_cls_reg
     model.embed_dim = embed_dim
+
+    if global_pool:
+        model.classifier_feature = "global_pool"
+    elif use_cls:
+        model.classifier_feature = "use_cls_token"
+    else:
+        model.classifier_feature = "reshape_embedding"
     return model
 
 def load_mae_encoder(model, checkpoint_path=None, subkey="model", **kwargs):
@@ -91,7 +105,7 @@ def load_mae_encoder(model, checkpoint_path=None, subkey="model", **kwargs):
     model.forward_features = types.MethodType(dinov3_forward_features, model)
     model.forward = types.MethodType(dinov3_forward_features, model)
 
-    if not model.global_pool and not not model.use_cls:
+    if not model.global_pool and not model.use_cls:
         model.final_spatial = int(model.patch_embed.num_patches**0.5)
         model.embed_dim = (model.final_spatial, model.final_spatial, model.embed_dim)
         if model.flatten_embedding:

@@ -48,7 +48,7 @@ def r3m_transforms(resize_size=256, output_size=224):
         [
             T.Resize(resize_size), # interpolation=T.InterpolationMode.BICUBIC),
             T.CenterCrop(output_size),
-            T.ToTensor(),                # converts to [0,1]
+            ToTensorIfNot(),             # converts to [0,1]
             T.Lambda(lambda x: x * 255), # scale back to [0,255]
         ]
     )
