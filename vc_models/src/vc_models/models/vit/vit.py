@@ -275,6 +275,20 @@ def vit_huge_patch14(**kwargs):
     )
     return model
 
+def vit_huge_patch16(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", None)
+    model = VisionTransformer(
+        patch_size=16,
+        embed_dim=embed_dim or 1280,
+        depth=32,
+        num_heads=16,
+        mlp_ratio=4,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
 def deit_forward_features(self, x):
     x = self.original_forward(x).last_hidden_state
     if self.global_pool:
@@ -391,12 +405,33 @@ def load_mae_encoder(model, checkpoint_path=None, subkey="model"):
             # ['pos_embed'].shape == [1, 260, 1280] ['cls_token'].shape == [1, 4, 1280]
             cls_token = state_dict["cls_token"]
             pos_embed = state_dict["pos_embed"]
-            assert cls_token.shape[1] == 1 + model.reg_tokens and pos_embed.shape[1] == model.reg_tokens + model.pos_embed.shape[1]
-            state_dict["cls_token"] = cls_token[:, :1]
-            model.reg_token = cls_token[:, 1:] + pos_embed[:, 1:(model.reg_tokens+1)]
-            state_dict["pos_embed"] = torch.cat((pos_embed[:, :1], pos_embed[:, (model.reg_tokens+1):]), dim=1)
-            state_dict.pop("last_proj.weight")
-            state_dict.pop("last_proj.bias")
+            assert cls_token.shape[1] == 1 + model.reg_tokens
+            if pos_embed.shape[1] == model.reg_tokens + model.pos_embed.shape[1]:
+                # patch 14 model
+                state_dict["cls_token"] = cls_token[:, :1]
+                model.reg_token = cls_token[:, 1:] + pos_embed[:, 1:(model.reg_tokens+1)]
+                state_dict["pos_embed"] = torch.cat((pos_embed[:, :1], pos_embed[:, (model.reg_tokens+1):]), dim=1)
+                state_dict.pop("last_proj.weight")
+                state_dict.pop("last_proj.bias")
+            else:
+                # patch 16 input 256 model
+                assert cls_token.shape[1] == 4 and model.pos_embed.shape[1] == 197 and pos_embed.shape[1] == 260
+                cls_plus_reg = cls_token.shape[1]
+                resampled_pos_embed = resample_abs_pos_embed(
+                    state_dict["pos_embed"][:, cls_plus_reg:],
+                    new_size=model.patch_embed.grid_size,
+                    verbose=True,
+                    num_prefix_tokens = 0,
+                )
+                assert resampled_pos_embed.shape[1] == 196
+                state_dict["pos_embed"] = torch.cat((pos_embed[:, :1], resampled_pos_embed), dim=1)
+                state_dict["cls_token"] = cls_token[:, :1]
+                model.reg_token = cls_token[:, 1:] + pos_embed[:, 1:(model.reg_tokens+1)]
+
+                for key in list(state_dict.keys()):
+                    if key.startswith("decoder"):
+                        state_dict.pop(key)
+
         elif 'dinov2' in checkpoint_path.lower():
             # https://github.com/huggingface/pytorch-image-models/blob/019550eeaf43b35f998e59bdf53d117bced3c2f3/timm/models/vision_transformer.py#L751
             model.reg_token = state_dict.pop("reg_token", None)
