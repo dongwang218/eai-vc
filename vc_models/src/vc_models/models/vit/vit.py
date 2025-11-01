@@ -232,6 +232,23 @@ def clip_vit_base_patch16(**kwargs):
     return model
 
 
+def clip_vit_large_patch14(**kwargs):
+    embed_dim = kwargs.pop("embed_dim", 1024)
+    model = ClipVisionTransformer(
+        patch_size=14,
+        embed_dim=embed_dim,
+        depth=24,
+        num_heads=16,
+        mlp_ratio=4,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        # CLIP-specific:
+        pre_norm=True,
+        num_classes=512,
+        **kwargs
+    )
+    return model
+
 def vit_large_patch16(**kwargs):
     embed_dim = kwargs.pop("embed_dim", None)
     model = VisionTransformer(
@@ -491,13 +508,13 @@ def load_contrastive_vit(model, checkpoint_path=None, state_dict_key="state_dict
         # if next(iter(state_dict.items()))[0].startswith('module'):
         #     state_dict = {k[7:]: v for k, v in state_dict.items()}
 
-        state_dict = timm.models.vision_transformer._convert_openai_clip(state_dict, model)
-        return state_dict
+        state_dict_fixed = timm.models.vision_transformer._convert_openai_clip(state_dict, model)
+
+        return state_dict_fixed if state_dict_fixed else state_dict
 
     state_dict = load_state_dict(checkpoint_path) # torch.load(checkpoint_path, map_location="cpu")[state_dict_key]
     state_dict.pop("head.bias", None)
     state_dict.pop("head.weight", None)
-    
     # state_dict = {}
     # for k in list(old_state_dict.keys()):
     #     # retain only base_encoder up to before the embedding layer

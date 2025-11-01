@@ -1,0 +1,22 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.vit.load_mae_encoder
+  checkpoint_path: model_ckpts/pixo/distill_vit_1b_to_huge_dec768d16b_latent_mask75_2grid_drop0.4_mc2b_softmaeloss_hist4.5_res320_bs8192_blr2e-6_ep540.pth
+  subkey: "model"
+  model:
+    _target_: vc_models.models.vit.vit.vit_huge_patch16
+    use_cls: False
+    drop_path_rate: 0.0
+    reg_tokens: 3
+    flatten_embedding: True
+    embed_dim: 1280
+transform:
+  _target_: vc_models.transforms.vit_transforms
+metadata:
+  algo: mae
+  model: vit_huge_patch16_pixo
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs

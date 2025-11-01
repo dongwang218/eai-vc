@@ -1,0 +1,21 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.vit.load_contrastive_vit
+  checkpoint_path: model_ckpts/clip/vit_large_patch14_clip_224.laion2b.bin
+  model:
+    _target_: vc_models.models.vit.vit.clip_vit_large_patch14
+    img_size: 224
+    use_cls: False
+    flatten_embedding: True
+    embed_dim: 1024
+    drop_path_rate: 0.0
+transform:
+  _target_: vc_models.transforms.clip_transforms
+metadata:
+  algo: mae
+  model: clip_vit_large_patch14
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs
