@@ -93,9 +93,27 @@ class BCFinetune:
             self.state_type_key = "o_state"
         elif self.conf.task.state_type ==  "goal_cond":
             self.state_type_key = "o_goal"
-        # Policy
-        self.policy = construct_policy(self.conf.task.state_type, train_dataset[0]["input"]["ft_state"].shape[0], self.encoder.pretrained_rep_dim,
-                                              self.conf.task.goal_type,train_dataset.out_dim,self.traj_info["max_a"],self.device)
+
+        if self.encoder.pretrained_rep_model.flatten_embedding:
+            from vc_models.models.theia.trifinger_policy import construct_policy as construct_policy_sp
+            if hasattr(self.encoder.pretrained_rep_model, "patch_embed"):
+                num_patches = self.encoder.pretrained_rep_model.patch_embed.num_patches
+            else:
+                num_patches = self.encoder.pretrained_rep_model.embeddings.patch_embeddings.num_patches
+            final_spatial = int(num_patches**0.5)
+            embed_dim = self.encoder.pretrained_rep_dim // num_patches
+            self.policy = construct_policy_sp("ConvBatchNormMLP", 
+                                              self.conf.task.state_type, 
+                                              train_dataset[0]["input"]["ft_state"].shape[0], 
+                                              (embed_dim, final_spatial, final_spatial),
+                                            self.conf.task.goal_type,train_dataset.out_dim,
+                                            self.traj_info["max_a"],
+                                            self.device)
+        else:
+
+            # Policy
+            self.policy = construct_policy(self.conf.task.state_type, train_dataset[0]["input"]["ft_state"].shape[0], self.encoder.pretrained_rep_dim,
+                                                self.conf.task.goal_type,train_dataset.out_dim,self.traj_info["max_a"],self.device)
         self.policy.eval()
         log.info(f"Policy:\n{self.policy}")
 
