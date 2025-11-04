@@ -1,0 +1,23 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.vit.load_deit_encoder
+  checkpoint_path: model_ckpts/theia/theia-base-patch16-224-cdiv.pt
+  model:
+    _target_: vc_models.models.vit.vit.deit_base_patch16
+    drop_path_rate: 0.0
+    init_values: 1e-5
+    use_cls: False
+    flatten_embedding: True
+    embed_dim: 768
+    img_size: 256
+transform:
+  _target_: vc_models.transforms.deit_transforms
+  output_size: 256
+metadata:
+  algo: mae
+  model: theia_base_patch16
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs

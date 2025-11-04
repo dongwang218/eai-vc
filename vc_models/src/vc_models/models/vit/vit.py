@@ -19,6 +19,7 @@ from timm.models.vision_transformer import resize_pos_embed
 import math
 import torch.nn.functional as F
 import numpy as np
+import transformers
 from transformers import AutoModel
 import types
 
@@ -97,7 +98,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
     def handle_outcome(self, x):
         if self.classifier_feature == "global_pool":
-            x = x[:, 1:, :].mean(dim=1)  # global pool without cls token
+            x = x[:, (1+self.reg_tokens):, :].mean(dim=1)  # global pool without cls token
             outcome = self.fc_norm(x)
         elif self.classifier_feature == "use_cls_token":
             x = self.norm(x)
@@ -322,8 +323,25 @@ def deit_forward_features(self, x):
         return outcome
 
 # theia
-def deit_base_patch16(global_pool=False, use_cls=True, flatten_embedding: bool=False, **kwargs):
-    deit = AutoModel.from_pretrained("facebook/deit-base-patch16-224", image_size=224)
+def deit_base_patch16(global_pool=False, use_cls=True, flatten_embedding: bool=False, img_size=224, **kwargs):
+    configuration = transformers.models.vit.configuration_vit.ViTConfig(
+        hidden_size=768,
+        num_hidden_layers=12,
+        num_attention_heads=12,
+        intermediate_size=3072,
+        hidden_act="gelu",
+        hidden_dropout_prob=0.0,
+        attention_probs_dropout_prob=0.0,
+        initializer_range=0.02,
+        layer_norm_eps=1e-12,
+        image_size=img_size,
+        patch_size=16,
+        num_channels=3,
+        qkv_bias=True,
+        encoder_stride=16,
+    )
+    deit = transformers.models.vit.modeling_vit.ViTModel(configuration)
+    #deit = AutoModel.from_pretrained("facebook/deit-base-patch16-224", image_size=224)
     deit.pooler = torch.nn.Identity()
     deit.global_pool = global_pool
     deit.use_cls = use_cls
@@ -351,6 +369,8 @@ def deit_base_patch16(global_pool=False, use_cls=True, flatten_embedding: bool=F
         if flatten_embedding:
             deit.embed_dim = np.prod(deit.embed_dim)
 
+    deit.image_size = img_size
+    deit.patch_size = 16
     return deit
 
 def load_r3m(**kwargs):
@@ -556,5 +576,15 @@ def load_deit_encoder(model, checkpoint_path=None, subkey="model", **kwargs):
         checkpoint_path = os.path.join(model_base_dir,checkpoint_path)
         
     state_dict = torch.load(checkpoint_path, map_location="cpu")["model"]
+    # embeddings.position_embeddings
+    if state_dict["embeddings.position_embeddings"].shape != model.embeddings.position_embeddings.shape:
+
+        state_dict["embeddings.position_embeddings"] = resize_pos_embed(
+            state_dict["embeddings.position_embeddings"],
+            model.embeddings.position_embeddings,
+            getattr(model, "num_tokens", 1),
+            (model.image_size // model.patch_size, model.image_size // model.patch_size)
+        )
+
     model.load_state_dict(state_dict)
     return model

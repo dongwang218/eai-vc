@@ -40,9 +40,10 @@ def dinov3_forward_features(self, x):
 
 
 def vit_large_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_embedding=False,
-        avg_cls_reg=False, **kwargs):
+        avg_cls_reg=False, img_size=224, **kwargs):
     embed_dim = kwargs.pop("embed_dim", 1024)
     model = DinoVisionTransformer(
+        img_size=img_size,
         patch_size=16,
         embed_dim=embed_dim,
         depth=24,
@@ -67,9 +68,10 @@ def vit_large_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_emb
     return model
 
 def vit_huge_patch16(global_pool=False, use_cls=True, reg_tokens=0, flatten_embedding=False,
-        avg_cls_reg=False, **kwargs):
+        avg_cls_reg=False, img_size=224, **kwargs):
     embed_dim = kwargs.pop("embed_dim", 1280)
     model = DinoVisionTransformer(
+        img_size=img_size,
         patch_size=16,
         embed_dim=embed_dim,
         depth=32,

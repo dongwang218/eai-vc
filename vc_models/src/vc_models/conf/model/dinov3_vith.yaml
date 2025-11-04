@@ -23,7 +23,7 @@ model:
     ffn_layer: "swiglu"
     compact_arch_name: "vithplus"
 transform:
-  _target_: vc_models.transforms.dinov3_vit_transforms
+  _target_: vc_models.transforms.vit_transforms
 metadata:
   algo: mae
   model: vit_huge_patch16_dinov3

@@ -22,8 +22,11 @@ model:
     drop_path_rate: 0.0
     ffn_layer: "swiglu"
     compact_arch_name: "vithplus"
+    img_size: 256
 transform:
   _target_: vc_models.transforms.vit_transforms
+  resize_size: 256
+  output_size: 256
 metadata:
   algo: mae
   model: vit_huge_patch16_dinov3
