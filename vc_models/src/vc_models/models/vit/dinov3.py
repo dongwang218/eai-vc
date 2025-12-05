@@ -12,7 +12,10 @@ from torch import Tensor, nn
 import torch.nn.functional as F
 from iopath.common.file_io import g_pathmgr
 import sys
-sys.path.append('/home/dongwang/workspace/github/clip/dinov3/')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Navigate to target directory (adjust the relative path as needed)
+target_dir = os.path.join(current_dir, '../../../../../../dinov3')
+sys.path.append(target_dir)
 from dinov3.models.vision_transformer import DinoVisionTransformer
 import types
 import numpy as np
