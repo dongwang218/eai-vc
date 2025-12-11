@@ -1,0 +1,26 @@
+_target_: vc_models.models.load_model
+model:
+  _target_: vc_models.models.vit.pixo.pixo.load_mae_encoder
+  checkpoint_path: /checkpoint/data/huxu/code_pub/pixo_huge_latest_release.pth
+  subkey: ""
+  model:
+    _target_: vc_models.models.vit.pixo.pixo.pixo_huge
+    use_cls: True
+    drop_path_rate: 0.0
+    reg_tokens: 8
+    embed_dim: 1280
+    cat_cls_reg: True
+    img_size: 256
+    n_cls_tokens: 8
+transform:
+  _target_: vc_models.transforms.vit_transforms
+  resize_size: 256
+  output_size: 256
+metadata:
+  algo: mae
+  model: vit_huge_patch16_pixo
+  data:
+    - ego
+    - imagenet
+    - inav
+  comment: 182_epochs
